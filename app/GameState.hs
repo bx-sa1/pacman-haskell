@@ -1,21 +1,34 @@
 module GameState where
 
-import SDL hiding (Paused)
+import Constants
+import Foreign.C
+import Graph
+import Pacman
+import SDL hiding (E, Paused)
 
 data GameState
   = Running
-      {
+      { pacman :: Pacman,
+        graph :: Graph Float
       }
-  | Paused
+  | Paused GameState
   | Menu
   | Quit
-  deriving (Eq, Show)
+  deriving (Eq)
 
 initialGameState :: GameState
 initialGameState = Menu
 
 update :: Double -> GameState -> GameState
-update dt Menu = Running
+update dt Menu =
+  Running {pacman = initPacman nodeA, graph = graph'}
+  where
+    nodeA = Node (V2 0 0) Void nodeB nodeC Void
+    nodeB = Node (V2 (tileWidth * 2) 0) Void Void Void nodeA
+    nodeC = Node (V2 0 (tileHeight * 4)) nodeA Void Void Void
+    graph' = Graph [nodeA, nodeB, nodeC]
+update dt running@(Running pacman' graph') =
+  running {pacman = move dt pacman'}
 update dt gamestate = gamestate
 
 processInput :: GameState -> EventPayload -> GameState
@@ -26,10 +39,14 @@ processInput gamestate (KeyboardEvent kbdata) = case kbdata of
 processInput gamestate _ = gamestate
 
 processStateInput :: Keycode -> GameState -> GameState
-processStateInput keycode gamestate@Running = case keycode of
-  KeycodeEscape -> Paused
+processStateInput keycode gamestate@(Running _ _) = case keycode of
+  KeycodeEscape -> Paused gamestate
+  KeycodeW -> gamestate {pacman = setTarget (M N) (pacman gamestate)}
+  KeycodeD -> gamestate {pacman = setTarget (M E) (pacman gamestate)}
+  KeycodeS -> gamestate {pacman = setTarget (M S) (pacman gamestate)}
+  KeycodeA -> gamestate {pacman = setTarget (M W) (pacman gamestate)}
   _ -> gamestate
-processStateInput keycode gamestate@Paused = case keycode of
+processStateInput keycode gamestate@(Paused _) = case keycode of
   _ -> gamestate
 processStateInput keycode gamestate@Menu = case keycode of
   _ -> gamestate
